@@ -10,3 +10,6 @@ The code takes advantage of AWS Lambda environmental variables for the following
 - debugMode	- enables error messages to be sent to Slack within a code block message
 - slackHookPath - This is obtained from Slack via their webhook app option
 - timezone - Set to the correct timezone phrase (i.e. U.S./Pacific) to format time correctly in the Slack message
+
+![Alt text](https://github.com/mkumar-avit/zoom-slack-webhook/blob/master/zoom%20webhook.png?raw=true "Application Diagram")
+![Alt text](https://github.com/mkumar-avit/zoom-slack-webhook/blob/master/Zoom-Slack-Webhook%20preview.png?raw=true "Slack sample")
