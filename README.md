@@ -11,5 +11,11 @@ The code takes advantage of AWS Lambda environmental variables for the following
 - slackHookPath - This is obtained from Slack via their webhook app option
 - timezone - Set to the correct timezone phrase (i.e. U.S./Pacific) to format time correctly in the Slack message
 
+
+## App Requirements
+- **Zoom JWT Token** via a simple custom app created in Zoom's marketplace (the expiration date of the JWT token is configurable)
+- **Zoom Webhook Only App**  a simple custom app also created in Zoom's marketplace made with a few clicks.  From this zoom app, an admin can select what notifications that want pushed to Slack
+- **AWS** - AWS Lambda and an API Gateway at a minimum configured with appropriate IAM permissions so they can communicate with each other.  Cloudwatch is useful for logging all data coming into AWS Lambda
+
 ![Alt text](https://github.com/mkumar-avit/zoom-slack-webhook/blob/master/zoom%20webhook.png?raw=true "Application Diagram")
 ![Alt text](https://github.com/mkumar-avit/zoom-slack-webhook/blob/master/Zoom-Slack-Webhook%20preview.png?raw=true "Slack sample")
