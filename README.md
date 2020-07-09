@@ -1,6 +1,6 @@
 # zoom-slack-webhook event notification 
 #### Zoom Webhook events displayed in a Slack channel
-This code takes webhook events from Zoom (conferencing app) and translates and formats it to display on a Slack Channel (messaging app).   The code is designed around the use of AWS Lambda (with a AWS API Gateway).  This may be useful for enterprise accounts that want to monitor activity on their Zoom account like new user creation, license usage, issues with webinars, and global account changes.
+This code takes webhook events from Zoom (conferencing app) and translates and formats it to display on a Slack Channel (messaging app).   The code is designed around the use of AWS Lambda (with an AWS API Gateway).  This may be useful for enterprise accounts that want to monitor activity on their Zoom account like new user creation, license usage, issues with webinars, and global account changes.
 
 
 The code does use the Python requests library, which is not native to AWS Lambda Python 3.7 and it requires importing the Python library into the Lambda environment.  The files can be zipped up and imported directly into an AWS Lambda Python function.   In configuring the Lambda function set the max run time to 6 seconds (multiple lookup calls to zoom can increase the time to up to a little more than 5 seconds).
