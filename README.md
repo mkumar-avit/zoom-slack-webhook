@@ -6,7 +6,7 @@ This code takes webhook events from Zoom (conferencing app) and translates and f
 The code does use the Python requests library, which is not native to AWS Lambda Python 3.7 and it requires importing the Python library into the Lambda environment.  The files can be zipped up and imported directly into an AWS Lambda Python function.   In configuring the Lambda function set the max run time to 6 seconds (multiple lookup calls to zoom can increase the time to up to a little more than 5 seconds).
 
 The code takes advantage of AWS Lambda environmental variables that needed to be populated by the user for the following items:
-- JWTToken - This is obtained from Zoom by creating a new JWT app in Zoom and allows for group and user lookup
+- JWTToken - This is obtained from Zoom by creating a new JWT app in Zoom and allows for group and user lookup.  It is not required for the webhook events to post to slack, but items like host ID and user ID will not be translated to an actual user name, or a license count will not display when a new user event is triggered.
 - bearerToken -	This is to validate the webhook event is a valid and authorized message
 - debugMode	- enables error messages to be sent to Slack within a code block message
 - slackHookPath - This is obtained from Slack via their webhook app option
