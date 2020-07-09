@@ -1,4 +1,5 @@
-# zoom-slack-webhook (Zoom to Slack webhook events)
+# zoom-slack-webhook event notification 
+#### Zoom Webhook events displayed in a Slack channel
 This code takes webhook events from Zoom (conferencing app) and translates and formats it to display on a Slack Channel (messaging app).   The code is designed around the use of AWS Lambda (with a AWS API Gateway).  This may be useful for enterprise accounts that want to monitor activity on their Zoom account like new user creation, license usage, issues with webinars, and global account changes.
 
 
