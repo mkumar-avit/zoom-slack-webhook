@@ -16,7 +16,7 @@ The code takes advantage of AWS Lambda environmental variables that needed to be
 ## App Requirements
 - **Zoom JWT Token** via a simple custom app created in Zoom's marketplace (the expiration date of the JWT token is configurable)
 - **Zoom Webhook Only App**  a simple custom app also created in Zoom's marketplace made with a few clicks.  From this Zoom app, an admin can select what notifications they want pushed to Slack
-- **AWS** - AWS Lambda and an API Gateway at a minimum configured with appropriate IAM permissions so they can communicate with each other.  Cloudwatch is useful for logging all data coming into AWS Lambda.  AWS SQS is recommended when dealing with multiple back-to-back notifications in a high volume environment.
+- **AWS** - AWS Lambda and an API Gateway at a minimum configured with appropriate IAM permissions so they can communicate with each other.  Cloudwatch is useful for logging all data coming into AWS Lambda.  AWS SQS is recommended when dealing with multiple back-to-back notifications in a high volume environment, but the code will need to be updated to take advantage of SQS.
 
 ## General Program Architecture 
 ![Alt text](https://github.com/mkumar-avit/zoom-slack-webhook/blob/master/zoom%20webhook.png?raw=true "Application Diagram")
