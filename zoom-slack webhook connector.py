@@ -172,49 +172,108 @@ def PrintException():
     line = linecache.getline(filename, lineno, f.f_globals)
     log (f"++Exception in ({filename}, LINE {lineno}, {line.strip()}: {exc_obj}")
 
+def writeToS3(filename):
+    try:    
+        s3_client = boto3.client('s3')
+        response = s3_client.upload_file(filename, 'lambda-custom-s3', filename)
+    except Exception as e:
+        template = "An error uploading file to S3 Bucket: exception of type {0} occurred. Arguments:\n{1!r}"
+        message = template.format(type(e).__name__, e.args)
+    
 def writeCSVdata():
+    log("Retrieving data in S3 Bucket for function:  writeCSVdata")
     dataTracking = retrieve_data()
+    
+    os.chdir('/tmp')
+    
     dateFormat = "%d-%m-%Y"
     
-    
-    with open('License Tracking.csv', 'w', newline='') as outcsv:
-        writer = csv.DictWriter(outcsv, fieldnames = ["Date", "Licenses", "Remaining", "Pro Licenses Added", "Pro Licenses Deleted","Basic Licenses Added","Basic Licenses Deleted"])
-        writer.writeheader()
-        
-        for timestamp in dataTracking:
-            data = dataTracking[timestamp]['licenses']
-            writer.writerow({\
-                "Date": timestamp, 
-                "Licenses": data["total"],
-                "Remaining":data["remaining"],
-                "Pro Licenses Added":data['Licensed']['added'],
-                "Pro Licenses Deleted":data['Licensed']['deleted'],
-                "Basic Licenses Added":data['Basic']['added'],
-                "Basic Licenses Deleted":data['Basic']['deleted']
-                })
-                
-    try:    
-        with open('User Setting Tracking.csv', 'w', newline='') as outcsv:
+    try:
+        fileName = "License Tracking.csv"
+        with open(fileName, 'w', newline='') as outcsv:
+            writer = csv.DictWriter(outcsv, fieldnames = ["Date", "Licenses", "Remaining", "Pro Licenses Added", "Pro Licenses Deleted","Basic Licenses Added","Basic Licenses Deleted"])
+            writer.writeheader()
+            
+            for timestamp in dataTracking:
+                try:
+                    data = dataTracking[timestamp]['licenses']
+                    writer.writerow({\
+                        "Date": timestamp, 
+                        "Licenses": data["total"],
+                        "Remaining":data["remaining"],
+                        "Pro Licenses Added":data['Licensed']['added'],
+                        "Pro Licenses Deleted":data['Licensed']['deleted'],
+                        "Basic Licenses Added":data['Basic']['added'],
+                        "Basic Licenses Deleted":data['Basic']['deleted']
+                        })
+                except KeyError as e:
+                    None
+        writeToS3(fileName)            
+    except Exception as e:
+        PrintException()
+        log(f"CSV Write Error: {e}")
+    try:
+        fileName = "User Setting Tracking.csv"
+        with open(fileName, 'w', newline='') as outcsv:
             writer = csv.DictWriter(outcsv, fieldnames = ["Date", "Group", "Category", "Setting","Value","Count"])
             writer.writeheader() 
             
             for timestamp in dataTracking:
-                data = dataTracking[timestamp]['updates']
                 try:
-                    for group in data:
-                        for category in data[group]:
-                            for setting in data[group][category]:
-                                writer.writerow({\
-                                    "Date": timestamp,
-                                    "Group": group,
-                                    "Category":category,
-                                    "Setting":setting,
-                                    "Value":data[group][category][setting]['flag'],
-                                    })    
+                    test = time.strptime(timestamp, "%d-%m-%Y")   
+                    try:
+                        data = dataTracking[timestamp]['updates']
+                        #print(f'##Found Timestamp to record in CSV: {timestamp}')
+                    except:
+                        data = {}
+                except Exception as e:
+                    #print (f"Error in timstamp value in json file:{e}")
+                    data = {}
+                
+                    
+                try:
+                    if data != {}:
+                        for group in data:
+                            #print(f'##Found Group to record in CSV: {group}')
+                            try:
+                                for category in data[group]:
+                                    #print(f"Find category: {category}")
+                                    try:
+                                        for setting in data[group][category]:
+                                            #print(f"Find setting: {setting}")
+                                            try:
+                                                for flag in data[group][category][setting]:
+                                                    csvRow = {\
+                                                        "Date": timestamp,
+                                                        "Group": group,
+                                                        "Category":category,
+                                                        "Setting":setting,
+                                                        "Value":flag,
+                                                        "Count":data[group][category][setting][flag]
+                                                        }
+                                                    writer.writerow(csvRow)  
+                                                    #print(f"CSV Row: {csvRow}")
+                                            except Exception as e:
+                                                #print('Error in CSV flag data: {e}')
+                                                None
+                                    except:
+                                            #PrintException()
+                                            None
+                                            
+                            except:
+                                #print("Issue in building categories:")
+                                #PrintException()
+                                None
+                    
                 except:
-                    PrintException()
+                    #print("Issue in building groups:")
+                    #PrintException()
+                    None
+        writeToS3(fileName)
     except:
         PrintException()
+        
+    
         
 def store_data(dictData):
     os.chdir('/tmp')
@@ -241,13 +300,13 @@ def store_data(dictData):
 
 def retrieve_data():
     def check_data(data):
-        
         timestamp = timeGet()
         
         try:
             if not timestamp in data:
-                writeCSVdata()
                 data[timestamp] = {}
+                store_data(data)
+                writeCSVdata()
             
             if not "licenses" in data[timestamp]:
                 data[timestamp]["licenses"] = {}
@@ -270,6 +329,7 @@ def retrieve_data():
                 data[timestamp][desc][licType]["deleted"] = 0
         except Exception as e:
             log(f"!Error in generating JSON data structure: {e}")
+        
         return data        
     
     os.chdir('/tmp')
@@ -289,9 +349,10 @@ def retrieve_data():
         print(f"S3 Object Data: {dataDict}")
     except Exception as e:
         log (f"!S3 Object read error: {e}")
-                
+              
+    contents = check_data(dataDict)
     
-    return check_data(dataDict)
+    return contents
 
 
 def log(msg):
@@ -642,7 +703,7 @@ def dailyLicenseUsage(licType,timestamp, delta):
     
     desc = "licenses"
     
-     
+    log("Retrieving data in S3 Bucket for function:  dailyLicenseUsage")
     dataTracking = retrieve_data()
     licenseCnt = 0
     try:
@@ -695,8 +756,9 @@ def dailyLicenseUsage(licType,timestamp, delta):
   
     
 def tracking(desc,*args):
+    log("Retrieving data in S3 Bucket for function:  tracking")
     dataTracking = retrieve_data()
- 
+    
     dataStr = ""
     totalPrev = 0
     timestamp = timeGet()
@@ -1115,12 +1177,14 @@ def lambda_handler(event, context):
     
     deduplication = duplicate_event(event)
     
+    
     if valid == True and deduplication == False:
         if 'incident_url' in event:
             statuspage_webhandler(event)
         else:
             groups=get_group_data()
             zoom_webhandler(event)
+            writeCSVdata()
         
         return {
             'statusCode': 200,
