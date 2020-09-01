@@ -144,6 +144,12 @@ eventDesc =\
             "emoji": ":bust_in_silhouette:",
             "type": "license"
         },
+        "user.invitation_accepted":
+        {
+            "name":"User Invitation Accepted",
+            "emoji":":email:",
+            "type":"license"
+        },
         "account.settings_updated":
         {
             "name": "Account Setting Updated",
@@ -159,7 +165,8 @@ apiURL =\
         'plan': 'https://api.zoom.us/v2/accounts/@/plans/usage',
         'account':'https://api.zoom.us/v2/accounts/@',
         'roles':'https://api.zoom.us/v2/roles',
-        'rolesList':'https://api.zoom.us/v2/roles/@/members'
+        'rolesList':'https://api.zoom.us/v2/roles/@/members',
+        'subaccount':'https://api.zoom.us/v2/accounts'
     }
 
 
@@ -172,14 +179,30 @@ def PrintException():
     line = linecache.getline(filename, lineno, f.f_globals)
     log (f"++Exception in ({filename}, LINE {lineno}, {line.strip()}: {exc_obj}")
 
-def writeToS3(filename):
+def readFromS3(objName, init = {},  bucket = 'lambda-custom-s3'):
+    
+    dataDict = init
+    
+    try:
+        s3 = boto3.resource('s3')
+        content_object = s3.Object(bucket, objName)
+        file_content = content_object.get()['Body'].read().decode('utf-8')
+        dataDict = json.loads((file_content))
+        log(f"S3 Object Data: {dataDict}")
+    except Exception as e:
+        log (f"!S3 Object read error: {e}")    
+    
+    return dataDict
+    
+    
+def writeToS3(objName, bucket = 'lambda-custom-s3'):
     try:    
         s3_client = boto3.client('s3')
-        response = s3_client.upload_file(filename, 'lambda-custom-s3', filename)
+        response = s3_client.upload_file(objName, 'lambda-custom-s3', objName)
     except Exception as e:
         template = "An error uploading file to S3 Bucket: exception of type {0} occurred. Arguments:\n{1!r}"
         message = template.format(type(e).__name__, e.args)
-    
+  
 def writeCSVdata():
     log("Retrieving data in S3 Bucket for function:  writeCSVdata")
     dataTracking = retrieve_data()
@@ -290,11 +313,7 @@ def store_data(dictData):
     except Exception as e:
         print (f"Error Saving File: {e}")
 
-    try:
-        s3_client = boto3.client('s3')
-        response = s3_client.upload_file('data.json', 'lambda-custom-s3', 'data.json')
-    except Exception as e:
-        print (f"Error uploading file to S3: {e}")
+    writeToS3('data.json')
     
 
 
@@ -340,15 +359,7 @@ def retrieve_data():
         }    
     
     
-    
-    try:
-        s3 = boto3.resource('s3')
-        content_object = s3.Object('lambda-custom-s3', 'data.json')
-        file_content = content_object.get()['Body'].read().decode('utf-8')
-        dataDict = json.loads((file_content))
-        print(f"S3 Object Data: {dataDict}")
-    except Exception as e:
-        log (f"!S3 Object read error: {e}")
+    dataDict = readFromS3('data.json', init = dataDict)
               
     contents = check_data(dataDict)
     
@@ -410,7 +421,7 @@ def duplicate_event(msg):
         
     return state    
 
-def send_JWT_request(apiType, data=""):
+def send_REST_request(apiType, data=""):
     '''
         Description:  Sends request to Zoom to pull more detailed info
                       not available in webhook event payload 
@@ -438,19 +449,19 @@ def send_JWT_request(apiType, data=""):
 
         accessToken = 'Bearer ' + JWT_TOKEN
         authHeader = {'Authorization': accessToken}
-        log(f"Sending JWT request for: {api}")
+        log(f"Sending HTTP REST request for: {api}")
        
         start = time.time()
         try:
             response = requests.get(url=api, headers=authHeader)
         except Exception as e:
-            log(f'Send JWT Request {api}, Response: {response}, Error:{e}')     
+            log(f'Send HTTP REST Request {api}, Response: {response}, Error:{e}')     
         try:       
             roundtrip = time.time() - start
             status = response.status_code
             respTime = response.elapsed
             respData = response.json()
-            log('JWT Auth {} Request Response Processing Time:{} Roundtrip Time:{}, Request Response: {},\n**RAW Request DATA: {}'.format(\
+            log('HTTP REST {} Request Response Processing Time:{} Roundtrip Time:{}, Request Response: {},\n**RAW Request DATA: {}'.format(\
                 apiType,respTime, roundtrip, response, respData))
             
             if status == 404:
@@ -465,7 +476,7 @@ def send_JWT_request(apiType, data=""):
                 tokenError = False
         except Exception as e:
             PrintException()
-            log('Processing JWT Request {} error:{}'.format(api, e))
+            log('Processing HTTP REST Request {} error:{}'.format(api, e))
         
     return respData
 
@@ -474,10 +485,10 @@ def get_acct_info(acctID):
 
     rolesData = ""
     
-    #acctInfo = send_JWT_request('account', acctID)
+    #acctInfo = send_REST_request('account', acctID)
     #@ToDo further automation by searching list and roles
     
-    rolesInfo = send_JWT_request('rolesList','0')
+    rolesInfo = send_REST_request('rolesList','0')
     try:
         rolesData = rolesInfo['members'][0]['email']
         return rolesData
@@ -514,7 +525,24 @@ def user_restricted(userID):
 
     return doNotDisplay
 
-
+def get_subaccount_data():
+    try:
+        subAccount = send_REST_request('subaccount', data='')
+    except Exception as e:
+        log("Error getting sub account data: {}".format(e))
+        subAccount = None
+    
+    try:
+        seats = 0
+        for data in subAccount['accounts']:
+            if 'seats' in data:
+                seats += data['seats']
+    except:
+        seats = 0
+        
+    
+    return (subAccount,seats)
+        
 def get_group_data():
     total_records = None
     response = None
@@ -522,7 +550,7 @@ def get_group_data():
     groups = ""
 
     try:
-        groups = send_JWT_request('groups', data='')
+        groups = send_REST_request('groups', data='')
     except Exception as e:
         log("Error getting group data: {}".format(e))
         groups = None
@@ -574,7 +602,7 @@ def get_user_scim2_data(userID):
     userInfo = ''
 
     try:
-        userInfo = send_JWT_request('scim2', userID)
+        userInfo = send_REST_request('scim2', userID)
     except Exception as e:
         log("Error in userInfo:".format(e))
         userInfo = userID
@@ -619,8 +647,8 @@ def scan_user_scim2_data(dataType, scim2data):
         if not piiData in doNotDisplayList:
             doNotDisplay = False
             
-            if 'userName' in scim2data:
-                scim2data['userName'] = 'PII Level 1 Restriction'
+        if 'userName' in scim2data and doNotDisplay == True:
+            scim2data['userName'] = 'PII Restricted Info'
     
         return doNotDisplay
             
@@ -646,11 +674,12 @@ def scan_user_scim2_data(dataType, scim2data):
     return [userInfo,doNotDisplay, scim2data['userType']]
 
 def getLicenseInfo(desc):
-    planInfo = send_JWT_request('plan', 'me')
+    planInfo = send_REST_request('plan', 'me')
+    (subAccount, seats) = get_subaccount_data()
 
     
     try:
-        planLicenses = planInfo["plan_base"]["hosts"]
+        planLicenses = planInfo["plan_base"]["hosts"] + seats
         planUsers = planInfo["plan_base"]["usage"]
         remainingNow = planLicenses - planUsers
         remainingPct = round(((remainingNow / planLicenses) * 100),2)
@@ -711,6 +740,9 @@ def dailyLicenseUsage(licType,timestamp, delta):
         # is a little more accurate except for the fact test data will increment
         # this number
         # will also need to track license removals to keep this accurate.
+        # Basic Licenses have to be manually tracked since the API currently
+        # does not have provide a total count with out querying and summing
+        # each user's license status
         try:
             usedPrevious = dataTracking[timestamp][desc]["usedPrevious"]
         except:
@@ -725,12 +757,12 @@ def dailyLicenseUsage(licType,timestamp, delta):
         
         licenseDiff = used - usedPrevious
         
-        log (f"Used Previous Licenses:  {usedPrevious}, current {used}, Diff: {licenseDiff}")
+        log (f"Used Previous Licenses:  {usedPrevious}, current {used}, Diff: {licenseDiff}, Current User: {licType}")
         
         usedPrevious = used
         
         if delta > 0:
-            if licenseDiff < 0:
+            if licenseDiff < 0 or licType.lower() == "basic" :
                 dataTracking[timestamp][desc][licType]["added"] += 1
             elif licenseDiff > 0:
                 dataTracking[timestamp][desc][licType]["added"] += licenseDiff
@@ -740,7 +772,7 @@ def dailyLicenseUsage(licType,timestamp, delta):
             licenseCnt =  dataTracking[timestamp][desc][licType]["added"]
             print(f"Daily Licenses Added: {licenseCnt}")
         else:
-            if licenseDiff > 0:
+            if licenseDiff > 0 or licType.lower() == "basic" :
                 dataTracking[timestamp][desc][licType]["deleted"] += 1
             elif licenseDiff < 0:
                 dataTracking[timestamp][desc][licType]["deleted"] += licenseDiff
@@ -1006,7 +1038,7 @@ def zoom_webhandler(event):
             if item == 'id' and eventTxt == "User Deleted":
                     doNotDisplay = False
                     userData = f'{objData["email"]} does not exist '
-            elif item == 'id' and eventTxt == "User Created":
+            elif item == 'id' and (eventTxt == "User Created" or eventTxt == "User Invitation Accepted"):
                 try:
                     # Lookup ID to crossreference group membership
                     userDetails = get_user_scim2_data(objData[item])
@@ -1018,13 +1050,12 @@ def zoom_webhandler(event):
                 try:
                     doNotDisplay = userData[1]
                     licenses = dailyLicenseUsage(userData[2],timeGet(),1)
-                    slackMsgHeader = f"{slackMsgHeader}\nLicensed users added today: {licenses}"
+                    slackMsgHeader = f"{slackMsgHeader}\n{userData[2]} users added today: {licenses}"
                     userData = userData[0]
                 except Exception as e:
                     log(f'{eventTxt}: user license data issue for {item}: {e}')
                     doNotDisplay = True
                     userData = objData['id']
-                    
             elif item == 'host_id':
                     try:
                         #Translate Host_ID value to readable user info
@@ -1081,7 +1112,7 @@ def zoom_webhandler(event):
                                     objData[item] = eventTypes[eventType][typeStr]
                                     licenses = dailyLicenseUsage(objData[item],timeGet(), -1)
                                     slackMsgHeader = f"{slackMsgHeader}\n{objData[item]} users deleted today: {licenses}"
-                                    
+                                   
                                 elif eventType == 'license':
                                     objData[item] = f"{userData}"
                                 else:
@@ -1193,6 +1224,6 @@ def lambda_handler(event, context):
     else:
         return {
             'statusCode': 401,
-            'body': 'Not Authorized'
+            'body': 'Error'
             
         }
