@@ -19,7 +19,7 @@ The code takes advantage of AWS Lambda environmental variables that needed to be
 - **AWS** - AWS Lambda and an API Gateway at a minimum configured with appropriate IAM permissions so they can communicate with each other.  Cloudwatch is useful for logging all data coming into AWS Lambda. An S3 bucket will be needed for logging and tracking of data to create licensed user creation trend graphs (via CSV file).
 
 ## General Program Architecture 
-![Alt text](https://github.com/mkumar-avit/zoom-slack-webhook/blob/master/zoom%20webhook.png?raw=true "Application Diagram")
+![Alt text](https://github.com/mkumar-avit/zoom-slack-webhook/blob/master/Zoom%20AWS%20Slack.png?raw=true "AWS Application Diagram")
 
 ## Sample Output in Slack
 ![Alt text](https://github.com/mkumar-avit/zoom-slack-webhook/blob/master/Zoom-Slack-Webhook%20preview.png?raw=true "Slack sample")
